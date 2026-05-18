@@ -2021,57 +2021,35 @@ async function fetchRowPrice(market, stockId, btnId){
   await _doFetchPrice(market, stock.ticker, fakeInp, btn);
 }
 async function _doFetchPrice(market, ticker, priceInp, btn){
-  const isTW = market==='tw';
-  const mktLabel = isTW ? '台股（TWD）' : '美股（USD）';
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 200,
-        tools:[{type:'web_search_20250305',name:'web_search'}],
-        messages:[{role:'user', content:
-          `請用 web search 查詢 ${ticker} 的最新${mktLabel}股票現價，只回傳一個純數字，不含任何文字、符號或貨幣符號。例如：960.5`
-        }]
-      })
+    const res = await fetch(WORKER_URL + '/fetch-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticker, market })
     });
-    const json = await resp.json();
-    // extract the final text reply
-    let price = null;
-    if(json.content){
-      for(const block of json.content){
-        if(block.type==='text'){
-          const num = parseFloat(block.text.replace(/[^0-9.]/g,''));
-          if(!isNaN(num) && num>0){ price=num; break; }
-        }
-      }
-    }
-    if(price){
-      if(priceInp._stockId != null){
-        // row fetch — update existing stock
-        updateStockPrice(priceInp._market, priceInp._stockId, price);
+    const json = await res.json();
+    if (json.ok && json.price) {
+      if (priceInp._stockId != null) {
+        updateStockPrice(priceInp._market, priceInp._stockId, json.price);
         btn.innerHTML = '✓';
         btn.style.background = 'var(--green-dim)';
         btn.style.borderColor = 'var(--green)';
         btn.style.color = 'var(--green)';
-        setTimeout(()=>{ btn.innerHTML='⚡'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; btn.disabled=false; }, 2000);
+        setTimeout(() => { btn.innerHTML = '⚡'; btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; btn.disabled = false; }, 2000);
       } else {
-        priceInp.value = price;
+        priceInp.value = json.price;
         btn.innerHTML = '✓';
-        setTimeout(()=>{ btn.innerHTML='⚡查價'; btn.disabled=false; }, 1500);
+        setTimeout(() => { btn.innerHTML = '⚡查價'; btn.disabled = false; }, 1500);
       }
     } else {
       btn.innerHTML = '✗';
-      setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
-      if(priceInp._stockId==null) alert('查詢失敗，請手動輸入現價');
+      setTimeout(() => { btn.innerHTML = priceInp._stockId != null ? '⚡' : '⚡查價'; btn.disabled = false; }, 1500);
     }
-  } catch(err) {
+  } catch(e) {
     btn.innerHTML = '✗';
-    setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
-    if(priceInp._stockId==null) alert('查詢失敗：'+err.message);
+    setTimeout(() => { btn.innerHTML = priceInp._stockId != null ? '⚡' : '⚡查價'; btn.disabled = false; }, 1500);
   }
 }
 
