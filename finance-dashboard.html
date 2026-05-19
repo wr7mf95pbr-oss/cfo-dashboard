@@ -2037,22 +2037,13 @@ function acInput(market){
       onmousedown="acSelect('${market}','${t}','${n.replace(/'/g,"\'")}')">
       <span class="ac-ticker">${t}</span><span class="ac-name">${n}</span>
     </div>`).join('');
-  // Position dropdown: open upward if near bottom of viewport
+  // Position dropdown: always open upward from input
   const rect = inp.getBoundingClientRect();
-  const spaceBelow = window.innerHeight - rect.bottom;
-  const spaceAbove = rect.top;
-  const dropH = Math.min(220, matches.length * 38);
-  ac.style.width = Math.max(280, rect.width) + 'px';
+  const dropH = Math.min(220, matches.length * 42);
+  ac.style.width = Math.max(300, rect.width) + 'px';
   ac.style.left = rect.left + 'px';
-  if(spaceBelow < dropH + 10 && spaceAbove > spaceBelow){
-    // open upward
-    ac.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
-    ac.style.top = 'auto';
-  } else {
-    // open downward
-    ac.style.top = (rect.bottom + 4) + 'px';
-    ac.style.bottom = 'auto';
-  }
+  ac.style.top = 'auto';
+  ac.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
 }
 function acKey(e, market){
   const ac = document.getElementById(market+'-ac');
