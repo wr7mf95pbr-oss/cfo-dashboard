@@ -481,7 +481,7 @@
   .af-ticker{width:80px;} .af-name{flex:1;min-width:80px;} .af-num{width:90px;} .af-price{width:90px;}
   .asset-empty{padding:20px;text-align:center;color:var(--text3);font-size:12px;font-family:'DM Mono',monospace;}
   .autocomplete-wrap{position:relative;flex:1;min-width:80px;}
-  .autocomplete-list{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;z-index:300;max-height:180px;overflow-y:auto;margin-top:2px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .autocomplete-list{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:8px;z-index:9999;max-height:220px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.6);min-width:280px;}
   .ac-item{padding:7px 10px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px;transition:background .1s;}
   .ac-item:hover,.ac-item.active{background:var(--surface2);}
   .ac-ticker{font-family:'DM Mono',monospace;font-size:12px;font-weight:500;color:var(--accent);flex-shrink:0;}
@@ -1004,6 +1004,7 @@
 // ─── CONFIG ────────────────────────────────────────────
 // ★ 部署 Cloudflare Worker 後，把網址填在這裡 ★
 const WORKER_URL = 'https://cfo-dashboard.rgbkv2wpwb.workers.dev';
+
 // ─── AUTH ──────────────────────────────────────────────
 async function hashPw(pw){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('cfo-salt:'+pw));
@@ -2036,6 +2037,22 @@ function acInput(market){
       onmousedown="acSelect('${market}','${t}','${n.replace(/'/g,"\'")}')">
       <span class="ac-ticker">${t}</span><span class="ac-name">${n}</span>
     </div>`).join('');
+  // Position dropdown: open upward if near bottom of viewport
+  const rect = inp.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const dropH = Math.min(220, matches.length * 38);
+  ac.style.width = Math.max(280, rect.width) + 'px';
+  ac.style.left = rect.left + 'px';
+  if(spaceBelow < dropH + 10 && spaceAbove > spaceBelow){
+    // open upward
+    ac.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+    ac.style.top = 'auto';
+  } else {
+    // open downward
+    ac.style.top = (rect.bottom + 4) + 'px';
+    ac.style.bottom = 'auto';
+  }
 }
 function acKey(e, market){
   const ac = document.getElementById(market+'-ac');
