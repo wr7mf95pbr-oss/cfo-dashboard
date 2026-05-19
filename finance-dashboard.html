@@ -318,6 +318,19 @@
   .debt-bar-track{height:4px;background:var(--surface2);border-radius:2px;overflow:hidden;margin-bottom:4px;}
   .debt-bar-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .5s;}
   .debt-meta{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);}
+  .debt-edit-btn{background:none;border:1px solid var(--border2);color:var(--text3);font-size:10px;padding:2px 8px;border-radius:5px;cursor:pointer;transition:all .15s;}
+  .debt-edit-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .debt-edit-zone{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);flex-direction:column;gap:8px;}
+  .debt-edit-zone.open{display:flex;}
+  .debt-edit-row{display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;}
+  .debt-ef{display:flex;flex-direction:column;gap:3px;}
+  .debt-ef.grow{flex:1;min-width:80px;}
+  .debt-el{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+  .debt-ei{background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 7px;border-radius:5px;width:100%;}
+  .debt-ei:focus{outline:none;border-color:var(--accent);}
+  .debt-save-btn{background:var(--green);border:none;color:#0a0a0f;font-size:11px;font-weight:500;padding:5px 11px;border-radius:5px;cursor:pointer;}
+  .debt-save-btn:hover{opacity:.85;}
+  .debt-discard-btn{background:none;border:1px solid var(--border2);color:var(--text2);font-size:11px;padding:5px 9px;border-radius:5px;cursor:pointer;}
 
   /* RECURRING PAGE */
   .recur-intro{font-size:12px;color:var(--text2);line-height:1.7;margin-bottom:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;}
@@ -669,7 +682,7 @@
   <div class="tab" onclick="switchPage('budget',this)">🎛️ 預算調控</div>
   <div class="tab" onclick="switchPage('twstock',this)">🇹🇼 台股持股</div>
   <div class="tab" onclick="switchPage('usstock',this)">🇺🇸 美股持股</div>
-  <div class="tab" onclick="switchPage('forex',this)">💱 外幣儲蓄</div>
+  <div class="tab" onclick="switchPage('forex',this)">💰 貨幣儲蓄</div>
 </div>
 
 <div class="main">
@@ -965,21 +978,22 @@
     </div>
   </div>
   <div style="font-size:11px;color:var(--text3);padding:4px 0;">
-    * USD/TWD 匯率請在外幣儲蓄頁設定，台幣換算將自動同步。
+    * USD/TWD 匯率請在貨幣儲蓄頁設定，台幣換算將自動同步。
   </div>
 </div>
 
 <!-- ══ PAGE: FOREX ══ -->
 <div id="page-forex" class="page">
   <div class="asset-total-bar">
-    <span class="atb-label">外幣總資產（換算台幣）</span>
+    <span class="atb-label">貨幣儲蓄總額（換算台幣）</span>
     <span class="atb-value" id="forex-twd-total">NT$0</span>
   </div>
   <div class="currency-grid" id="forex-grid"></div>
   <div class="asset-table-wrap">
-    <div class="asset-table-header"><span class="asset-table-title">＋ 新增外幣</span></div>
+    <div class="asset-table-header"><span class="asset-table-title">＋ 新增貨幣儲蓄</span></div>
     <div class="cc-add-form">
       <select id="forex-flag" style="background:var(--bg);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 8px;border-radius:6px;width:130px;">
+        <option value="TWD|🇹🇼|台幣">TWD 🇹🇼 台幣</option>
         <option value="USD|💵|美元">USD 💵 美元</option>
         <option value="JPY|💴|日圓">JPY 💴 日圓</option>
         <option value="EUR|💶|歐元">EUR 💶 歐元</option>
@@ -993,7 +1007,7 @@
       </select>
       <input id="forex-amount" placeholder="持有金額" type="number" style="background:var(--bg);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 8px;border-radius:6px;width:120px;" />
       <input id="forex-rate" placeholder="兌台幣匯率" type="number" step="0.01" style="background:var(--bg);border:1px solid var(--border2);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;padding:5px 8px;border-radius:6px;width:120px;" />
-      <button class="btn-add" onclick="addForex()">＋ 新增外幣</button>
+      <button class="btn-add" onclick="addForex()">＋ 新增</button>
     </div>
   </div>
 </div>
@@ -1618,7 +1632,7 @@ function render(){
     const rateStr=d.rate>0?` · 年利率 ${d.rate}%`:'';
     const periodsStr=d.periods>0?` · 共 ${d.periods} 期`:'';
     const remainStr=remainMonths>0?`剩約 ${remainMonths} 個月還清`:'';
-    return `<div class="debt-row">
+    return `<div class="debt-row" id="debt-row-${d.id}">
       <div class="debt-top">
         <div>
           <div class="debt-name">${d.name}</div>
@@ -1627,8 +1641,9 @@ function render(){
             ${rateStr||periodsStr?`<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${rateStr}${periodsStr}</span>`:''}
           </div>
         </div>
-        <div style="display:flex;gap:7px;align-items:center;">
+        <div style="display:flex;gap:6px;align-items:center;">
           <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)">月還 ${fmtNT(d.monthly)}</span>
+          <button class="debt-edit-btn" id="debt-editbtn-${d.id}" onclick="toggleDebtEdit(${d.id})">✏️ 編輯</button>
           <button class="btn-del" onclick="delDebt(${d.id})">✕</button>
         </div>
       </div>
@@ -1636,6 +1651,41 @@ function render(){
       <div class="debt-meta">
         <span>已還清 ${pct}% ${remainStr?'· '+remainStr:''}</span>
         <span>剩餘 ${fmtNT(remaining)} ／ 總額 ${fmtNT(d.total)}</span>
+      </div>
+      <div class="debt-edit-zone" id="debt-edit-${d.id}">
+        <div class="debt-edit-row">
+          <div class="debt-ef grow">
+            <span class="debt-el">負債名稱</span>
+            <input class="debt-ei" id="de-name-${d.id}" value="${d.name}" />
+          </div>
+          <div class="debt-ef">
+            <span class="debt-el">月還款額</span>
+            <input class="debt-ei" id="de-monthly-${d.id}" type="number" value="${d.monthly}" style="width:90px;" />
+          </div>
+        </div>
+        <div class="debt-edit-row">
+          <div class="debt-ef">
+            <span class="debt-el">貸款總額</span>
+            <input class="debt-ei" id="de-total-${d.id}" type="number" value="${d.total||0}" style="width:110px;" />
+          </div>
+          <div class="debt-ef">
+            <span class="debt-el">已繳金額</span>
+            <input class="debt-ei" id="de-paid-${d.id}" type="number" value="${d.paid||0}" style="width:110px;" />
+          </div>
+          <div class="debt-ef">
+            <span class="debt-el">總期數（月）</span>
+            <input class="debt-ei" id="de-periods-${d.id}" type="number" value="${d.periods||0}" style="width:90px;" />
+          </div>
+          <div class="debt-ef">
+            <span class="debt-el">年利率（%）</span>
+            <input class="debt-ei" id="de-rate-${d.id}" type="number" step="0.01" value="${d.rate||0}" style="width:90px;" />
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="debt-save-btn" onclick="saveDebtEdit(${d.id})">✓ 儲存</button>
+          <button class="debt-discard-btn" onclick="toggleDebtEdit(${d.id})">取消</button>
+          <button class="btn-sm" onclick="calcDebtMonthly(${d.id})" style="font-size:10px;padding:4px 9px;">自動計算月還款</button>
+        </div>
       </div>
     </div>`;
   }).join(''):'<div class="empty-row">尚未新增負債</div>';
@@ -1701,7 +1751,7 @@ function renderNetWorth(){
   const segs=[
     {icon:'🇹🇼', label:'台股', val:twVal, cost:twCost, sub:`${twS.length} 檔`, color:'var(--green)', tab:'twstock'},
     {icon:'🇺🇸', label:'美股', val:usVal, cost:usCost, sub:`${usS.length} 檔 ≈ ${fmtUSD(usValUSD)}`, color:'var(--blue)', tab:'usstock'},
-    {icon:'💱', label:'外幣', val:fxVal, cost:fxVal, sub:`${fx.length} 種外幣`, color:'var(--amber)', tab:'forex'},
+    {icon:'💰', label:'貨幣儲蓄', val:fxVal, cost:fxVal, sub:`${fx.length} 種貨幣`, color:'var(--amber)', tab:'forex'},
     {icon:'📋', label:'未償負債', val:-totalDebtOutstanding, cost:0, sub:totalDebtOutstanding>0?`${m.debts.length} 筆`:'無負債', color:'var(--red)', tab:'dashboard'},
   ];
   const maxVal=Math.max(...segs.map(s=>Math.abs(s.val)),1);
@@ -1771,7 +1821,7 @@ function renderNetWorth(){
       <span class="nw-cf-value" style="color:var(--blue)">${fmtNTfull(totalInvest)}</span>
     </div>
     <div class="nw-cf-item" style="align-items:flex-end">
-      <span class="nw-cf-label">外幣儲蓄</span>
+      <span class="nw-cf-label">貨幣儲蓄</span>
       <span class="nw-cf-value" style="color:var(--amber)">${fmtNTfull(fxVal)}</span>
     </div>`;
 }
@@ -1948,6 +1998,45 @@ function addDebt(){
   save(); render();
 }
 function delDebt(id){ getM().debts=getM().debts.filter(d=>d.id!==id); save(); render(); }
+function toggleDebtEdit(id){
+  const zone=document.getElementById('debt-edit-'+id);
+  const btn=document.getElementById('debt-editbtn-'+id);
+  const isOpen=zone.classList.toggle('open');
+  btn.textContent=isOpen?'✕ 關閉':'✏️ 編輯';
+  btn.style.color=isOpen?'var(--red)':'';
+  btn.style.borderColor=isOpen?'var(--red-dim)':'';
+}
+function saveDebtEdit(id){
+  const d=getM().debts.find(x=>x.id===id);
+  if(!d) return;
+  const name=document.getElementById('de-name-'+id).value.trim();
+  const monthly=parseFloat(document.getElementById('de-monthly-'+id).value)||0;
+  const total=parseFloat(document.getElementById('de-total-'+id).value)||0;
+  const paid=parseFloat(document.getElementById('de-paid-'+id).value)||0;
+  const periods=parseFloat(document.getElementById('de-periods-'+id).value)||0;
+  const rate=parseFloat(document.getElementById('de-rate-'+id).value)||0;
+  if(!name||!monthly) return;
+  d.name=name; d.monthly=monthly; d.total=total; d.paid=paid; d.periods=periods; d.rate=rate;
+  save(); render();
+}
+function calcDebtMonthly(id){
+  const total=parseFloat(document.getElementById('de-total-'+id).value)||0;
+  const paid=parseFloat(document.getElementById('de-paid-'+id).value)||0;
+  const periods=parseFloat(document.getElementById('de-periods-'+id).value)||0;
+  const rate=parseFloat(document.getElementById('de-rate-'+id).value)||0;
+  if(!total||!periods){ alert('請填寫貸款總額和期數'); return; }
+  let monthly;
+  if(rate>0){
+    const r=rate/100/12;
+    const remaining=total-paid;
+    const paidPeriods=total>0?Math.round(paid/(total/periods)):0;
+    const remainPeriods=Math.max(1,periods-paidPeriods);
+    monthly=remaining*r*Math.pow(1+r,remainPeriods)/(Math.pow(1+r,remainPeriods)-1);
+  } else {
+    monthly=(total-paid)/Math.max(1,periods);
+  }
+  document.getElementById('de-monthly-'+id).value=Math.round(monthly);
+}
 
 // ─── STOCK DATABASE ───────────────────────────────────
 const TW_STOCKS = [
@@ -2288,12 +2377,13 @@ function updateStockPrice(market,id,val){
 // ─── ASSETS: FOREX ─────────────────────────────────────
 function renderForex(){
   const list=data.forex||[];
-  const total=list.reduce((s,f)=>s+f.amount*f.rate,0);
+  const total=list.reduce((s,f)=>s+(f.code==='TWD'?f.amount:f.amount*f.rate),0);
   document.getElementById('forex-twd-total').textContent=fmtNTfull(total);
   const grid=document.getElementById('forex-grid');
-  if(!list.length){ grid.innerHTML='<div class="asset-empty">尚未新增外幣</div>'; return; }
+  if(!list.length){ grid.innerHTML='<div class="asset-empty">尚未新增貨幣儲蓄</div>'; return; }
   grid.innerHTML=list.map(f=>{
-    const twd=f.amount*f.rate;
+    const isTWD=f.code==='TWD';
+    const twd=isTWD?f.amount:f.amount*f.rate;
     const pct=total>0?((twd/total)*100).toFixed(1):0;
     return `<div class="currency-card">
       <div class="cc-top">
@@ -2307,15 +2397,15 @@ function renderForex(){
         <button class="btn-del" onclick="delForex(${f.id})">✕</button>
       </div>
       <div class="cc-amount">${f.amount.toLocaleString()}</div>
-      <div class="cc-twd">≈ ${fmtNTfull(twd)} （佔比 ${pct}%）</div>
-      <div class="cc-rate-row">
-        <span class="cc-rate-label">兌台幣匯率</span>
-        <input class="cc-rate-input" type="number" step="0.001" value="${f.rate}" onchange="updateForexRate(${f.id},this.value)" />
-      </div>
-      <div class="cc-rate-row" style="margin-top:6px;padding-top:6px;border-top:none;">
-        <span class="cc-rate-label">持有金額</span>
+      <div class="cc-twd">${isTWD?'台幣直接計算':'≈ '+fmtNTfull(twd)} （佔比 ${pct}%）</div>
+      <div class="cc-rate-row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
+        <span class="cc-rate-label">儲蓄金額</span>
         <input class="cc-rate-input" type="number" value="${f.amount}" onchange="updateForexAmount(${f.id},this.value)" />
       </div>
+      ${isTWD?'':`<div class="cc-rate-row" style="margin-top:6px;">
+        <span class="cc-rate-label">兌台幣匯率</span>
+        <input class="cc-rate-input" type="number" step="0.001" value="${f.rate}" onchange="updateForexRate(${f.id},this.value)" />
+      </div>`}
     </div>`;
   }).join('');
 }
@@ -2323,13 +2413,13 @@ function addForex(){
   const sel=document.getElementById('forex-flag').value.split('|');
   const code=sel[0], flag=sel[1], name=sel[2];
   const amount=parseFloat(document.getElementById('forex-amount').value);
-  const rate=parseFloat(document.getElementById('forex-rate').value);
-  if(!amount||!rate) return;
+  const isTWD=code==='TWD';
+  const rate=isTWD?1:parseFloat(document.getElementById('forex-rate').value);
+  if(!amount||(! isTWD&&!rate)) return;
   if(!data.forex) data.forex=[];
-  // merge if same currency exists
   const existing=data.forex.find(f=>f.code===code);
-  if(existing){ existing.amount+=amount; existing.rate=rate; }
-  else data.forex.push({id:genId(),code,flag,name,amount,rate});
+  if(existing){ existing.amount+=amount; if(!isTWD) existing.rate=rate; }
+  else data.forex.push({id:genId(),code,flag,name,amount,rate:isTWD?1:rate});
   document.getElementById('forex-amount').value='';
   document.getElementById('forex-rate').value='';
   save(); renderForex();
