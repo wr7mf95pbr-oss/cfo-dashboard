@@ -977,7 +977,7 @@
 <script>
 // ─── CONFIG ────────────────────────────────────────────
 // ★ 部署 Cloudflare Worker 後，把網址填在這裡 ★
-const WORKER_URL = 'https://cfo-dashboard.rgbkv2wpwb.workers.dev';
+const WORKER_URL = 'YOUR_WORKER_URL'; // ex: https://cfo-dashboard.你的帳號.workers.dev
 
 // ─── AUTH ──────────────────────────────────────────────
 async function hashPw(pw){
@@ -2030,26 +2030,26 @@ async function _doFetchPrice(market, ticker, priceInp, btn){
       body: JSON.stringify({ ticker, market })
     });
     const json = await res.json();
-    if (json.ok && json.price) {
-      if (priceInp._stockId != null) {
+    if(json.ok && json.price){
+      if(priceInp._stockId != null){
         updateStockPrice(priceInp._market, priceInp._stockId, json.price);
         btn.innerHTML = '✓';
         btn.style.background = 'var(--green-dim)';
         btn.style.borderColor = 'var(--green)';
         btn.style.color = 'var(--green)';
-        setTimeout(() => { btn.innerHTML = '⚡'; btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; btn.disabled = false; }, 2000);
+        setTimeout(()=>{ btn.innerHTML='⚡'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; btn.disabled=false; }, 2000);
       } else {
         priceInp.value = json.price;
         btn.innerHTML = '✓';
-        setTimeout(() => { btn.innerHTML = '⚡查價'; btn.disabled = false; }, 1500);
+        setTimeout(()=>{ btn.innerHTML='⚡查價'; btn.disabled=false; }, 1500);
       }
     } else {
       btn.innerHTML = '✗';
-      setTimeout(() => { btn.innerHTML = priceInp._stockId != null ? '⚡' : '⚡查價'; btn.disabled = false; }, 1500);
+      setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
     }
   } catch(e) {
     btn.innerHTML = '✗';
-    setTimeout(() => { btn.innerHTML = priceInp._stockId != null ? '⚡' : '⚡查價'; btn.disabled = false; }, 1500);
+    setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
   }
 }
 
