@@ -1626,19 +1626,45 @@ function render(){
 
   document.getElementById('debt-hd').textContent=fmtNT(tDbt)+'/月';
   document.getElementById('debt-list').innerHTML=m.debts.length?m.debts.map(d=>{
-    const pct=d.total>0?Math.min(100,Math.round(d.paid/d.total*100)):0;
-    const remaining=d.total>0?d.total-d.paid:0;
-    const remainMonths=d.monthly>0?Math.ceil(remaining/d.monthly):0;
+    // 本利攤還正確計算：用已繳期數反推剩餘本金
+    const paidN = d.paidPeriods||0;        // 已繳期數
+    const totalN = d.periods||0;           // 總期數
+    const P = d.total||0;                  // 貸款本金
+    const annualRate = d.rate||0;
+    let remainingPrincipal = 0;
+    let pct = 0;
+    let remainMonths = 0;
+    if(P>0 && totalN>0 && annualRate>0){
+      // 等額本息：每期還款 M = P*r*(1+r)^n / ((1+r)^n - 1)
+      const r = annualRate/100/12;
+      const M = P*r*Math.pow(1+r,totalN)/(Math.pow(1+r,totalN)-1);
+      // 已繳 paidN 期後剩餘本金 = P*(1+r)^paidN - M*((1+r)^paidN-1)/r
+      if(paidN>0){
+        remainingPrincipal = P*Math.pow(1+r,paidN) - M*(Math.pow(1+r,paidN)-1)/r;
+      } else {
+        remainingPrincipal = P;
+      }
+      remainingPrincipal = Math.max(0, Math.round(remainingPrincipal));
+      pct = Math.min(100, Math.round((P-remainingPrincipal)/P*100));
+      remainMonths = Math.max(0, totalN - paidN);
+    } else if(P>0 && d.monthly>0){
+      // 無利率時用簡單計算
+      const paid = d.paid||0;
+      remainingPrincipal = Math.max(0, P - paid);
+      pct = Math.min(100, Math.round(paid/P*100));
+      remainMonths = d.monthly>0 ? Math.ceil(remainingPrincipal/d.monthly) : 0;
+    }
     const rateStr=d.rate>0?` · 年利率 ${d.rate}%`:'';
     const periodsStr=d.periods>0?` · 共 ${d.periods} 期`:'';
-    const remainStr=remainMonths>0?`剩約 ${remainMonths} 個月還清`:'';
+    const paidPeriodsStr=paidN>0?` · 已繳 ${paidN} 期`:'';
+    const remainStr=remainMonths>0?`剩 ${remainMonths} 個月`:''
     return `<div class="debt-row" id="debt-row-${d.id}">
       <div class="debt-top">
         <div>
           <div class="debt-name">${d.name}</div>
           <div style="margin-top:3px;display:flex;gap:5px;align-items:center;">
             ${d.recurId?rBadge():''}
-            ${rateStr||periodsStr?`<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${rateStr}${periodsStr}</span>`:''}
+            ${rateStr||periodsStr||paidPeriodsStr?`<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${rateStr}${periodsStr}${paidPeriodsStr}</span>`:''}
           </div>
         </div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -1649,8 +1675,8 @@ function render(){
       </div>
       <div class="debt-bar-track"><div class="debt-bar-fill" style="width:${pct}%"></div></div>
       <div class="debt-meta">
-        <span>已還清 ${pct}% ${remainStr?'· '+remainStr:''}</span>
-        <span>剩餘 ${fmtNT(remaining)} ／ 總額 ${fmtNT(d.total)}</span>
+        <span>已還清本金 ${pct}% ${remainStr?'· '+remainStr:''}</span>
+        <span>剩餘本金 ${fmtNT(remainingPrincipal)} ／ 總額 ${fmtNT(P)}</span>
       </div>
       <div class="debt-edit-zone" id="debt-edit-${d.id}">
         <div class="debt-edit-row">
@@ -1669,8 +1695,8 @@ function render(){
             <input class="debt-ei" id="de-total-${d.id}" type="number" value="${d.total||0}" style="width:110px;" />
           </div>
           <div class="debt-ef">
-            <span class="debt-el">已繳金額</span>
-            <input class="debt-ei" id="de-paid-${d.id}" type="number" value="${d.paid||0}" style="width:110px;" />
+            <span class="debt-el">已繳期數</span>
+            <input class="debt-ei" id="de-paid-${d.id}" type="number" value="${d.paidPeriods||0}" style="width:90px;" placeholder="第幾期" />
           </div>
           <div class="debt-ef">
             <span class="debt-el">總期數（月）</span>
@@ -1988,7 +2014,7 @@ function addDebt(){
   const rate=parseFloat(document.getElementById('debt-rate').value)||0;
   if(!name||!monthly||monthly<=0) return;
   ensureMonth();
-  getM().debts.push({id:genId(),name,monthly,total,paid,periods,rate});
+  getM().debts.push({id:genId(),name,monthly,total,paidPeriods:0,periods,rate});
   document.getElementById('debt-name').value='';
   document.getElementById('debt-monthly').value='';
   document.getElementById('debt-total-inp').value='';
@@ -2012,28 +2038,26 @@ function saveDebtEdit(id){
   const name=document.getElementById('de-name-'+id).value.trim();
   const monthly=parseFloat(document.getElementById('de-monthly-'+id).value)||0;
   const total=parseFloat(document.getElementById('de-total-'+id).value)||0;
-  const paid=parseFloat(document.getElementById('de-paid-'+id).value)||0;
+  const paidPeriods=parseFloat(document.getElementById('de-paid-'+id).value)||0;
   const periods=parseFloat(document.getElementById('de-periods-'+id).value)||0;
   const rate=parseFloat(document.getElementById('de-rate-'+id).value)||0;
   if(!name||!monthly) return;
-  d.name=name; d.monthly=monthly; d.total=total; d.paid=paid; d.periods=periods; d.rate=rate;
+  d.name=name; d.monthly=monthly; d.total=total; d.paidPeriods=paidPeriods; d.periods=periods; d.rate=rate;
   save(); render();
 }
 function calcDebtMonthly(id){
   const total=parseFloat(document.getElementById('de-total-'+id).value)||0;
-  const paid=parseFloat(document.getElementById('de-paid-'+id).value)||0;
+  const paidPeriods=parseFloat(document.getElementById('de-paid-'+id).value)||0;
   const periods=parseFloat(document.getElementById('de-periods-'+id).value)||0;
   const rate=parseFloat(document.getElementById('de-rate-'+id).value)||0;
   if(!total||!periods){ alert('請填寫貸款總額和期數'); return; }
   let monthly;
   if(rate>0){
     const r=rate/100/12;
-    const remaining=total-paid;
-    const paidPeriods=total>0?Math.round(paid/(total/periods)):0;
-    const remainPeriods=Math.max(1,periods-paidPeriods);
-    monthly=remaining*r*Math.pow(1+r,remainPeriods)/(Math.pow(1+r,remainPeriods)-1);
+    // 用原始本金計算標準月付額（等額本息）
+    monthly=total*r*Math.pow(1+r,periods)/(Math.pow(1+r,periods)-1);
   } else {
-    monthly=(total-paid)/Math.max(1,periods);
+    monthly=total/Math.max(1,periods);
   }
   document.getElementById('de-monthly-'+id).value=Math.round(monthly);
 }
