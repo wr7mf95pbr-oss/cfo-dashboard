@@ -771,11 +771,37 @@
     <div class="panel">
       <div class="panel-header"><span class="panel-title">📋 負債管理</span><span class="panel-total" id="debt-hd" style="color:var(--blue)">NT$0/月</span></div>
       <div class="panel-body" id="debt-list"></div>
-      <div class="add-form">
-        <input class="f-name" id="debt-name" placeholder="負債名稱" />
-        <input class="f-amt" id="debt-monthly" placeholder="月還款" type="number" />
-        <input class="f-amt" id="debt-total-inp" placeholder="總負債" type="number" />
-        <button class="btn-add" onclick="addDebt()">＋ 新增</button>
+      <div class="add-form" style="flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:100px;">
+            <span class="form-label">負債名稱</span>
+            <input class="f-name" id="debt-name" placeholder="例：房貸、車貸" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span class="form-label">貸款總額</span>
+            <input class="f-amt" id="debt-total-inp" placeholder="總金額" type="number" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span class="form-label">已還金額</span>
+            <input class="f-amt" id="debt-paid-inp" placeholder="已還" type="number" />
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end;">
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span class="form-label">貸款期數（月）</span>
+            <input class="f-amt" id="debt-periods" placeholder="例：240" type="number" style="width:90px;" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span class="form-label">年利率（%）</span>
+            <input class="f-amt" id="debt-rate" placeholder="例：2.5" type="number" step="0.01" style="width:90px;" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:3px;">
+            <span class="form-label">月還款額</span>
+            <input class="f-amt" id="debt-monthly" placeholder="自動計算或手填" type="number" />
+          </div>
+          <button class="btn-sm" onclick="calcMonthly()" style="align-self:flex-end;padding:5px 10px;">自動計算</button>
+          <button class="btn-add" onclick="addDebt()" style="align-self:flex-end;">＋ 新增</button>
+        </div>
       </div>
     </div>
   </div>
@@ -978,7 +1004,6 @@
 // ─── CONFIG ────────────────────────────────────────────
 // ★ 部署 Cloudflare Worker 後，把網址填在這裡 ★
 const WORKER_URL = 'https://cfo-dashboard.rgbkv2wpwb.workers.dev';
-
 // ─── AUTH ──────────────────────────────────────────────
 async function hashPw(pw){
   const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('cfo-salt:'+pw));
@@ -1587,16 +1612,30 @@ function render(){
   document.getElementById('debt-hd').textContent=fmtNT(tDbt)+'/月';
   document.getElementById('debt-list').innerHTML=m.debts.length?m.debts.map(d=>{
     const pct=d.total>0?Math.min(100,Math.round(d.paid/d.total*100)):0;
+    const remaining=d.total>0?d.total-d.paid:0;
+    const remainMonths=d.monthly>0?Math.ceil(remaining/d.monthly):0;
+    const rateStr=d.rate>0?` · 年利率 ${d.rate}%`:'';
+    const periodsStr=d.periods>0?` · 共 ${d.periods} 期`:'';
+    const remainStr=remainMonths>0?`剩約 ${remainMonths} 個月還清`:'';
     return `<div class="debt-row">
       <div class="debt-top">
-        <div><div class="debt-name">${d.name}</div><div style="margin-top:3px">${d.recurId?rBadge():''}</div></div>
+        <div>
+          <div class="debt-name">${d.name}</div>
+          <div style="margin-top:3px;display:flex;gap:5px;align-items:center;">
+            ${d.recurId?rBadge():''}
+            ${rateStr||periodsStr?`<span style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${rateStr}${periodsStr}</span>`:''}
+          </div>
+        </div>
         <div style="display:flex;gap:7px;align-items:center;">
           <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--blue)">月還 ${fmtNT(d.monthly)}</span>
           <button class="btn-del" onclick="delDebt(${d.id})">✕</button>
         </div>
       </div>
       <div class="debt-bar-track"><div class="debt-bar-fill" style="width:${pct}%"></div></div>
-      <div class="debt-meta"><span>已還清 ${pct}%</span><span>總額 ${fmtNT(d.total)}</span></div>
+      <div class="debt-meta">
+        <span>已還清 ${pct}% ${remainStr?'· '+remainStr:''}</span>
+        <span>剩餘 ${fmtNT(remaining)} ／ 總額 ${fmtNT(d.total)}</span>
+      </div>
     </div>`;
   }).join(''):'<div class="empty-row">尚未新增負債</div>';
 
@@ -1872,16 +1911,39 @@ function delItem(type,id){
   else m.variable=m.variable.filter(i=>i.id!==id);
   save(); render();
 }
+function calcMonthly(){
+  const total=parseFloat(document.getElementById('debt-total-inp').value)||0;
+  const paid=parseFloat(document.getElementById('debt-paid-inp').value)||0;
+  const periods=parseFloat(document.getElementById('debt-periods').value)||0;
+  const rate=parseFloat(document.getElementById('debt-rate').value)||0;
+  if(!total||!periods){ alert('請填寫貸款總額和期數'); return; }
+  let monthly;
+  if(rate>0){
+    const r=rate/100/12;
+    const remaining=total-paid;
+    const remainPeriods=Math.max(1, periods - Math.round(paid/(total/periods)));
+    monthly=remaining*r*Math.pow(1+r,remainPeriods)/(Math.pow(1+r,remainPeriods)-1);
+  } else {
+    monthly=(total-paid)/Math.max(1,periods);
+  }
+  document.getElementById('debt-monthly').value=Math.round(monthly);
+}
 function addDebt(){
   const name=document.getElementById('debt-name').value.trim();
   const monthly=parseFloat(document.getElementById('debt-monthly').value);
   const total=parseFloat(document.getElementById('debt-total-inp').value)||0;
+  const paid=parseFloat(document.getElementById('debt-paid-inp').value)||0;
+  const periods=parseFloat(document.getElementById('debt-periods').value)||0;
+  const rate=parseFloat(document.getElementById('debt-rate').value)||0;
   if(!name||!monthly||monthly<=0) return;
   ensureMonth();
-  getM().debts.push({id:genId(),name,monthly,total,paid:0});
+  getM().debts.push({id:genId(),name,monthly,total,paid,periods,rate});
   document.getElementById('debt-name').value='';
   document.getElementById('debt-monthly').value='';
   document.getElementById('debt-total-inp').value='';
+  document.getElementById('debt-paid-inp').value='';
+  document.getElementById('debt-periods').value='';
+  document.getElementById('debt-rate').value='';
   save(); render();
 }
 function delDebt(id){ getM().debts=getM().debts.filter(d=>d.id!==id); save(); render(); }
@@ -2023,33 +2085,36 @@ async function fetchRowPrice(market, stockId, btnId){
 async function _doFetchPrice(market, ticker, priceInp, btn){
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
+  const isRow = priceInp._stockId != null;
+  const resetBtn = ()=>{ btn.innerHTML=isRow?'⚡':'⚡查價'; btn.disabled=false; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; };
   try {
     const res = await fetch(WORKER_URL + '/fetch-price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticker, market })
     });
+    if(!res.ok){ showSyncStatus('查價失敗 HTTP '+res.status, 'err'); btn.innerHTML='✗'; setTimeout(resetBtn,2000); return; }
     const json = await res.json();
-    if(json.ok && json.price){
-      if(priceInp._stockId != null){
+    if(json.ok && json.price && json.price > 0){
+      if(isRow){
         updateStockPrice(priceInp._market, priceInp._stockId, json.price);
         btn.innerHTML = '✓';
         btn.style.background = 'var(--green-dim)';
         btn.style.borderColor = 'var(--green)';
         btn.style.color = 'var(--green)';
-        setTimeout(()=>{ btn.innerHTML='⚡'; btn.style.background=''; btn.style.borderColor=''; btn.style.color=''; btn.disabled=false; }, 2000);
+        setTimeout(resetBtn, 2500);
       } else {
         priceInp.value = json.price;
         btn.innerHTML = '✓';
-        setTimeout(()=>{ btn.innerHTML='⚡查價'; btn.disabled=false; }, 1500);
+        setTimeout(resetBtn, 1800);
       }
     } else {
-      btn.innerHTML = '✗';
-      setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
+      showSyncStatus('查價：未取得數值（'+(json.error||'no price')+'）', 'warn');
+      btn.innerHTML='✗'; setTimeout(resetBtn,2000);
     }
   } catch(e) {
-    btn.innerHTML = '✗';
-    setTimeout(()=>{ btn.innerHTML=priceInp._stockId!=null?'⚡':'⚡查價'; btn.disabled=false; }, 1500);
+    showSyncStatus('查價失敗：'+e.message, 'err');
+    btn.innerHTML='✗'; setTimeout(resetBtn,2000);
   }
 }
 
@@ -2184,11 +2249,14 @@ function addStock(market){
   const name=document.getElementById(pre+'-name').value.trim();
   const shares=parseFloat(document.getElementById(pre+'-shares').value);
   const cost=parseFloat(document.getElementById(pre+'-cost').value);
-  const price=parseFloat(document.getElementById(pre+'-price').value);
-  if(!ticker||!name||!shares||!cost||!price) return;
+  const priceRaw=document.getElementById(pre+'-price').value;
+  const price=priceRaw===''?0:parseFloat(priceRaw);
+  // only ticker, shares, cost are required; name defaults to ticker; price can be 0
+  if(!ticker||!shares||isNaN(cost)||cost<=0) return;
+  const finalName = name||ticker;
   const arr=market==='tw'?'twStocks':'usStocks';
   if(!data[arr]) data[arr]=[];
-  data[arr].push({id:genId(),ticker,name,shares,cost,price});
+  data[arr].push({id:genId(),ticker,name:finalName,shares,cost,price:isNaN(price)?0:price});
   document.getElementById(pre+'-ticker').value='';
   document.getElementById(pre+'-name').value='';
   document.getElementById(pre+'-shares').value='';
